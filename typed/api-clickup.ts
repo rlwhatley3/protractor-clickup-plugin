@@ -9,7 +9,7 @@ export class Api {
 	private	headers: {
 		'Content-Type' : 'application/x-www-form-urlencoded',
 		'Authorization': ''
-	}
+	};
 
 
 	private options: any = {
@@ -25,7 +25,7 @@ export class Api {
 	};
 
 	private _userRequest(token?: string): Promise<any> {
-		let req = Object.assign({ path: '/api/v1/user', method: 'GET', headers: this.headers }, this.options);
+		let req = Object.assign(this.options, { path: '/api/v1/user', method: 'GET', headers: this.headers });
 
 		return new Promise((resolve, reject) => {
 			https.get(req, (res) => {

@@ -7,7 +7,7 @@
 
 export class Clickup {
 
-  config: { token: 'pk_KGJPNLQ6J0DX1Y2JE3PC9ANDKOXGB1OY' };
+  token_config: { token: 'pk_KGJPNLQ6J0DX1Y2JE3PC9ANDKOXGB1OY' };
 
   public name:string =  'Clickup';
 
@@ -23,8 +23,7 @@ export class Clickup {
     //   console.log('failed to fetch user: ', user);
     // });
 
-    console.log('hais');
-    console.log('config: ', this.config);
+    console.log('config: ', this.token_config);
   }
 
   public onPrepare():void|Promise<void> {
