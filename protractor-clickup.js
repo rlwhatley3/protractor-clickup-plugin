@@ -1,3 +1,9 @@
-var clickup = require('./build/protractor-clickup.js');
+var clickupReporter = require('./build/protractor-clickup.js').CUReporter;
 
-module.exports = clickup;
+var testReporter = new clickupReporter();
+
+// console.log('clickup test: ', testReporter);
+testReporter.setup();
+console.log('done');
+
+module.exports = testReporter;
