@@ -1,6 +1,6 @@
 {
   "name": "protractor-clickup-plugin",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Tasking through Testing",
   "main": "protractor-clickup.js",
   "scripts": {
@@ -14,11 +14,16 @@
   "keywords": [
     "clickup",
     "protractor",
+    "reporter",
+    "automate",
+    "automated",
+    "suite",
+    "test",
     "tasks",
     "tasking"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "rlwhatley3",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/rlwhatley3/protractor-clickup-plugin/issues"
   },
