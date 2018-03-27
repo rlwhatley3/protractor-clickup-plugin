@@ -11,19 +11,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 }
 Object.defineProperty(exports, "__esModule", { value: true });
-const https_1 = __importDefault(require("https"));
+const axios_1 = __importDefault(require("axios"));
 class Api {
     constructor(config) {
-        this.headers = { 'Authorization': '' };
-        this.options = {
-            connection: 'keep-alive',
-            gzip: true,
-            hostname: 'dev-api.clickup.com',
-            path: '/api/v1/',
-            port: 443
-        };
         this.config = config;
-        this.headers['Authorization'] = this.config.token;
+        axios_1.default.defaults.baseURL = this.config.baseUrl ? this.config.baseUrl : 'https://api.clickup.com/api/v1';
+        axios_1.default.defaults.headers.common['Authorization'] = this.config.token;
+        axios_1.default.defaults.headers.post['Content-Type'] = 'application/json';
         return this;
     }
     ;
@@ -39,27 +33,9 @@ class Api {
     }
     _teamRequest(id) {
         let localPath = `team/${id}`;
-        let req = Object.assign(this.options, { path: this.options.path.concat(localPath), headers: this.headers });
-        return new Promise((resolve, reject) => {
-            https_1.default.get(req, (res) => {
-                let chunks = [];
-                res.on('data', data => {
-                    chunks.push(data);
-                }).on('end', () => {
-                    let data = Buffer.concat(chunks).toString();
-                    let json = JSON.parse(data);
-                    if (json['team']) {
-                        resolve(json['team']);
-                    }
-                    else {
-                        reject(json);
-                    }
-                });
-            }).on('error', err => {
-                console.warn(`team request error: ${err}`);
-                reject(err);
-            });
-        });
+        return axios_1.default.get(localPath)
+            .then((team) => { return team.data.team; })
+            .catch(this._handleError.bind(this));
     }
     teams() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -69,90 +45,76 @@ class Api {
     }
     _teamsRequest() {
         let localPath = 'team';
-        let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers });
-        return new Promise((resolve, reject) => {
-            https_1.default.get(req, (res) => {
-                let chunks = [];
-                res.on('data', data => {
-                    chunks.push(data);
-                }).on('end', () => {
-                    let data = Buffer.concat(chunks).toString();
-                    let json = JSON.parse(data);
-                    if (json['teams']) {
-                        resolve(json['teams']);
-                    }
-                    else {
-                        reject(json);
-                    }
-                });
-            }).on('error', err => {
-                console.warn(`teams request error: ${err}`);
-                reject(err);
-            });
-        });
+        return axios_1.default.get(localPath)
+            .then((teams) => { return teams.data.teams; })
+            .catch(this._handleError.bind(this));
     }
     authorize(auth) {
         return __awaiter(this, void 0, void 0, function* () {
             let token = yield this._authorize(auth);
             this.config.token = token;
-            this.headers['Authorization'] = this.config.token;
+            axios_1.default.defaults.headers.common['Authorization'] = this.config.token;
         });
     }
     _authorize(auth) {
         let localPath = 'oauth/token';
-        let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers, method: 'POST' });
-        return new Promise((resolve, reject) => {
-            https_1.default.request(req, (res) => {
-                res.on('data', data => {
-                    let json = JSON.parse(data.toString());
-                    if (json['access_token']) {
-                        resolve(json['access_token']);
-                    }
-                    else {
-                        reject(json);
-                    }
-                });
-            }).on('error', err => {
-                console.warn(`authorization error: ${err}`);
-                reject(err);
-            });
-        });
+        return axios_1.default.post(localPath)
+            .then((data) => { return data.data.access_token; })
+            .catch(this._handleError.bind(this));
     }
     _userRequest(token) {
         let localPath = 'user';
-        let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers });
-        return new Promise((resolve, reject) => {
-            https_1.default.get(req, (res) => {
-                res.on('data', data => {
-                    let json = JSON.parse(data.toString());
-                    resolve(json);
-                });
-            }).on('error', err => {
-                console.warn('user request error: ', err);
-                reject(err);
-            });
-        });
+        return axios_1.default.get(localPath)
+            .then((userContainer) => { return userContainer.data; })
+            .catch(this._handleError.bind(this));
     }
     user() {
         return __awaiter(this, void 0, void 0, function* () {
-            let user = yield this._userRequest();
-            return user;
+            let userContainer = yield this._userRequest();
+            return userContainer.user;
+        });
+    }
+    batchUpdateTasks(tasks) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let updated = yield this._batchUpdateTasks(tasks);
+            return updated;
+        });
+    }
+    _batchUpdateTasks(tasks) {
+        let toUpdate = [];
+        tasks.forEach((task) => { toUpdate.push(this._updateTask(task)); });
+        return axios_1.default.all(toUpdate).then(data => {
+            return data;
+        }).catch(this._handleError.bind(this));
+    }
+    _updateTask(task) {
+        if (!(task && task.id)) {
+            console.error('No Task Id given for update');
+            return;
+        }
+        let localPath = `/task/${task.id}`;
+        return axios_1.default.put(localPath, task)
+            .then((u) => { return u.data; })
+            .catch(this._handleError.bind(this));
+    }
+    _batchCreateTasks(tasks) {
+        let toCreate = [];
+        tasks.forEach((task) => { toCreate.push(this._createTask(task)); });
+        return axios_1.default.all(toCreate).then((data) => {
+            return data;
+        }).catch(this._handleError.bind(this));
+    }
+    batchCreateTasks(tasks) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let newTasks = yield this._batchCreateTasks(tasks);
+            return newTasks;
         });
     }
     _createTask(task) {
-        let localPath = 'task';
-        let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers, method: 'POST' });
-        return new Promise((resolve, reject) => {
-            https_1.default.request(req, (res) => {
-                res.on('data', data => {
-                    let json = JSON.parse(data.toString());
-                    resolve(json);
-                });
-            }).on('error', err => {
-                console.warn(`create task error: ${err}`);
-                reject(err);
-            });
-        });
+        let localPath = `/list/${task.list_id.toString()}/task`;
+        return axios_1.default.post(localPath, task)
+            .then((taskId) => { return taskId.data; })
+            .catch(this._handleError.bind(this));
     }
     createTask(task) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -160,20 +122,22 @@ class Api {
             return createdTask;
         });
     }
-    create(event) {
-        return __awaiter(this, void 0, void 0, function* () {
-            console.log('event: ', event);
-            let task, subtask;
-            switch (event.type) {
-                case 'task':
-                    task = yield this._createTask(event);
-                    break;
-                case 'subtask':
-                    subtask = yield this._createTask(event);
-                    break;
-            }
-            return subtask ? subtask : task;
+    _uploadAttachment(image) {
+        return new Promise((resolve, reject) => {
+            console.log('fake uploading attachment...');
+            resolve('1234');
         });
+    }
+    uploadAttachment(image) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let uploadId = this._uploadAttachment(image);
+            return uploadId;
+        });
+    }
+    _handleError(err) {
+        if (err['err'] && err['ECODE']) {
+            console.warn(`protractor-clickup api error: ${err['ECODE']}: ${err['err']}`);
+        }
     }
 }
 exports.Api = Api;

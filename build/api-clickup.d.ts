@@ -3,6 +3,9 @@ export interface IAuthData {
     secret: string;
     code: string;
 }
+export interface ICUserContainer {
+    user: ICUser;
+}
 export interface ICUser {
     id: string;
     username: string;
@@ -11,8 +14,6 @@ export interface ICUser {
 }
 export declare class Api {
     config: any;
-    private headers;
-    private options;
     constructor(config?: any);
     team(id: string | number): Promise<any>;
     private _teamRequest(id);
@@ -22,7 +23,14 @@ export declare class Api {
     private _authorize(auth);
     private _userRequest(token?);
     user(): Promise<ICUser>;
+    batchUpdateTasks(tasks: any): Promise<any>;
+    private _batchUpdateTasks(tasks);
+    private _updateTask(task);
+    private _batchCreateTasks(tasks);
+    batchCreateTasks(tasks: any): Promise<any>;
     private _createTask(task);
     createTask(task: any): Promise<void | any>;
-    create(event: any): Promise<void | any>;
+    private _uploadAttachment(image);
+    uploadAttachment(image: any): Promise<void | any>;
+    private _handleError(err);
 }

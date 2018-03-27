@@ -1,10 +1,13 @@
-
-import https from 'https';
+import axios from 'axios';
 
 export interface IAuthData {
 	id: string;
 	secret: string;
 	code: string;
+}
+
+export interface ICUserContainer {
+	user: ICUser;
 }
 
 export interface ICUser {
@@ -18,21 +21,16 @@ export class Api {
 
 	public config: any;
 
-	private headers: any = { 'Authorization': '' };
-
-	private options: any = {
-		connection: 'keep-alive',
-		gzip: true,
-	  hostname: 'dev-api.clickup.com',
-	  path: '/api/v1/',
-	  port: 443
-	}
-
 	constructor(config?: any) {
 		this.config = config;
-		this.headers['Authorization'] = this.config.token;
+
+		axios.defaults.baseURL = this.config.baseUrl ? this.config.baseUrl : 'https://api.clickup.com/api/v1';
+		axios.defaults.headers.common['Authorization'] = this.config.token;
+		axios.defaults.headers.post['Content-Type'] = 'application/json';
+		// axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded';
 		return this;
 	};
+
 
 	public async team(id: string|number): Promise<any> {
 		if(!id) { console.error('ID required when using team lookup.'); }
@@ -43,26 +41,9 @@ export class Api {
 
 	private _teamRequest(id: string) {
 		let localPath = `team/${id}`;
-		let req = Object.assign(this.options, { path: this.options.path.concat(localPath), headers: this.headers });
-		return new Promise((resolve, reject) => {
-			https.get(req, (res) => {
-				let chunks = [];
-				res.on('data', data => {
-					chunks.push(data);
-				}).on('end', () => {
-				  let data = Buffer.concat(chunks).toString();
-				  let json = JSON.parse(data);
-					if(json['team']) {
-						resolve(json['team']);
-					} else {
-						reject(json);
-					}
-				});
-			}).on('error', err => { 
-				console.warn(`team request error: ${err}`);
-				reject(err); 
-			});
-		});
+		return axios.get(localPath)
+		.then((team) => { return team.data.team; })
+		.catch(this._handleError.bind(this));
 	}
 
 	public async teams(): Promise<[any]> {
@@ -72,97 +53,83 @@ export class Api {
 
 	private _teamsRequest(): Promise<[any]> {
 		let localPath = 'team';
-		let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers });
-		return new Promise((resolve, reject) => {
-			https.get(req, (res) => {
-				let chunks = [];
-				res.on('data', data => {
-				  chunks.push(data);
-				}).on('end', () => {
-				  let data = Buffer.concat(chunks).toString();
-				  let json = JSON.parse(data);
-					if(json['teams']) {
-						resolve(json['teams']);
-					} else {
-						reject(json);
-					}
-				});
-			}).on('error', err => { 
-				console.warn(`teams request error: ${err}`); 
-				reject(err); 
-			});
-		});
+		return axios.get(localPath)
+		.then((teams) => { return teams.data.teams; })
+		.catch(this._handleError.bind(this));
 	}
 
 	public async authorize(auth: IAuthData): Promise<any> {
 		let token = await this._authorize(auth);
 		this.config.token = token;
-		this.headers['Authorization'] = this.config.token;
+		axios.defaults.headers.common['Authorization'] = this.config.token;
 	}
 
 	private _authorize(auth: IAuthData) {
 		let localPath = 'oauth/token';
-
-		// todo - add client_id, client_secret, and code query params
-		let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers, method: 'POST' });
-
-		return new Promise((resolve, reject) => {
-			https.request(req, (res) => {
-				res.on('data', data => {
-					let json = JSON.parse(data.toString());
-					if(json['access_token']) {
-						resolve(json['access_token']);
-					} else {
-						reject(json);
-					}
-				});
-			}).on('error', err => { 
-				console.warn(`authorization error: ${err}`); 
-				reject(err);
-			});
-		});
+		return axios.post(localPath)
+			.then((data) => { return data.data.access_token; })
+			.catch(this._handleError.bind(this));
 	}
 
 	private _userRequest(token?: string): Promise<any> {
 		let localPath = 'user';
-		let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers });
-
-		return new Promise((resolve, reject) => {
-			https.get(req, (res) => {
-				res.on('data', data => {
-					let json = JSON.parse(data.toString());
-					resolve(json);
-				});
-			}).on('error', err => { 
-				console.warn('user request error: ', err); 
-				reject(err); });
-		});
+		return axios.get(localPath)
+		.then((userContainer) => { return userContainer.data; })
+		.catch(this._handleError.bind(this));
 	}
 
 	public async user(): Promise<ICUser> {
-		let user = await this._userRequest();
-		return user;
+		let userContainer = await this._userRequest();
+		return userContainer.user;
+	}
+
+	public async batchUpdateTasks(tasks): Promise<any> {
+		let updated = await this._batchUpdateTasks(tasks);
+		return updated;
+	}
+
+	private _batchUpdateTasks(tasks): Promise<any> {
+		let toUpdate: Array<Promise<any>> = [];
+
+		tasks.forEach((task) => { toUpdate.push(this._updateTask(task)); });
+
+		return axios.all(toUpdate).then(data => {
+			return data;
+		}).catch(this._handleError.bind(this));
+	}
+
+	private _updateTask(task): Promise<any> {
+		if(!(task && task.id)) {
+			console.error('No Task Id given for update');
+			return;
+		}
+		let localPath = `/task/${task.id}`;
+		return axios.put(localPath, task)
+			.then((u) => { return u.data })
+			.catch(this._handleError.bind(this))
+	}
+
+	private _batchCreateTasks(tasks): Promise<any> {
+
+		let toCreate: Array<Promise<any>> = [];
+
+		tasks.forEach((task) => { toCreate.push(this._createTask(task)); });
+
+		return axios.all(toCreate).then((data) => {
+			return data;
+		}).catch(this._handleError.bind(this));
+	}
+
+	public async batchCreateTasks(tasks): Promise<any> {
+		let newTasks = await this._batchCreateTasks(tasks);
+		return newTasks;
 	}
 
 	private _createTask(task): Promise<any> {
-		let localPath = 'task';
-
-		// todo: 
-		// 	implement actual request object usage
-		// 	catch data properly, not sure how large some descriptions are going to get.
-		// 	store this new task with relevance to any that may need to be attached to it as a parent
-		let req = Object.assign({}, this.options, { path: this.options.path.concat(localPath), headers: this.headers, method: 'POST' });
-
-		return new Promise((resolve, reject) => {
-			https.request(req, (res) => {
-				res.on('data', data => {
-					let json = JSON.parse(data.toString());
-					resolve(json);
-				});
-			}).on('error', err => { 
-				console.warn(`create task error: ${err}`); 
-				reject(err); });
-		});
+		let localPath = `/list/${task.list_id.toString()}/task`;
+		return axios.post(localPath, task)
+			.then((taskId) => { return taskId.data; })
+			.catch(this._handleError.bind(this));
 	}
 
 	public async createTask(task): Promise<void|any> {
@@ -170,19 +137,22 @@ export class Api {
 		return createdTask;
 	}
 
-	public async create(event): Promise<void|any> {
-		console.log('event: ', event);
-
-		let task, subtask;
-		switch(event.type) {
-			case 'task':
-				task = await this._createTask(event);
-				break;
-			case 'subtask':
-				subtask = await this._createTask(event);
-				break;
-		}
-
-		return subtask ? subtask : task;
+	// api doesn't support uploading from token yet
+	private _uploadAttachment(image): Promise<any> {
+		return new Promise((resolve, reject) => {
+			console.log('fake uploading attachment...')
+			resolve('1234');
+		});
 	}
+
+	public async uploadAttachment(image): Promise<void|any> {
+		let uploadId = this._uploadAttachment(image);
+		return uploadId;
+	}
+
+  private _handleError(err) {
+    if(err['err'] && err['ECODE']) { 
+      console.warn(`protractor-clickup api error: ${err['ECODE']}: ${err['err']}`);
+    }
+  }
 }
